@@ -1,0 +1,946 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<title>Dhyan Timer</title>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@300;400;600&family=Raleway:wght@300;400;600&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg:#0a0a0f; --bg2:#11111c; --bg3:#1a1a2e; --bg4:#232340;
+  --gold:#c9a84c; --gold-light:#e8c97a; --gold-dim:#7a6030; --gold-faint:rgba(201,168,76,0.08);
+  --white:#f0ede8; --muted:#7777aa; --green:#5aaa7a; --red:#cc5566; --blue:#4a90d9;
+  --radius:18px; --r-sm:10px;
+}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+html,body{height:100%;background:var(--bg);color:var(--white);font-family:"Raleway",sans-serif;overflow:hidden}
+
+/* ── SCREENS ── */
+.screen{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;
+  transition:opacity .3s,transform .3s;overflow:hidden}
+.screen.hidden{opacity:0;pointer-events:none;transform:scale(.97)}
+
+/* ── HEADER ── */
+.hdr{width:100%;display:flex;align-items:center;justify-content:space-between;padding:18px 20px 0;flex-shrink:0}
+.app-title{font-family:"Cormorant Garamond",serif;font-size:20px;font-weight:300;letter-spacing:4px;color:var(--gold)}
+.icon-btn{background:none;border:none;cursor:pointer;padding:8px;color:var(--gold);font-size:20px;border-radius:10px;transition:background .2s}
+.icon-btn:active{background:rgba(201,168,76,.15)}
+
+/* ── STAGE PILLS ── */
+.strip{width:100%;padding:12px 14px 0;overflow-x:auto;display:flex;gap:8px;scrollbar-width:none;flex-shrink:0}
+.strip::-webkit-scrollbar{display:none}
+.pill{flex-shrink:0;padding:5px 13px;border-radius:20px;border:1.5px solid var(--bg3);
+  font-size:11px;color:var(--muted);letter-spacing:.5px;background:var(--bg2);transition:all .3s;white-space:nowrap}
+.pill.active{border-color:var(--gold);color:var(--gold);background:var(--gold-faint);font-weight:600}
+.pill.done{border-color:var(--green);color:var(--green);background:rgba(90,170,122,.08)}
+
+/* ── CENTER ── */
+.center{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;
+  padding:0 28px;width:100%;min-height:0}
+.stage-lbl{font-family:"Cormorant Garamond",serif;font-size:12px;letter-spacing:4px;
+  text-transform:uppercase;color:var(--muted);margin-bottom:6px}
+.stage-nm{font-family:"Cormorant Garamond",serif;font-size:32px;font-weight:600;
+  color:var(--gold-light);margin-bottom:22px;letter-spacing:2px;text-align:center}
+
+/* ── RING ── */
+.ring-wrap{position:relative;width:210px;height:210px;margin-bottom:18px;flex-shrink:0}
+.ring-wrap svg{position:absolute;inset:0;transform:rotate(-90deg)}
+.rbg{fill:none;stroke:var(--bg3);stroke-width:8}
+.rprog{fill:none;stroke:var(--gold);stroke-width:8;stroke-linecap:round;
+  transition:stroke-dashoffset .5s linear;filter:drop-shadow(0 0 3px rgba(201,168,76,.4))}
+.rcen{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px}
+.t-main{font-family:"Cormorant Garamond",serif;font-size:56px;font-weight:300;color:var(--white);
+  letter-spacing:-2px;line-height:1}
+.t-sub{font-size:12px;color:var(--muted);letter-spacing:2px}
+.status-txt{font-size:12px;color:var(--muted);letter-spacing:1px;min-height:16px;margin-bottom:4px;text-align:center}
+
+/* ── OMKAR STAGE ── */
+.omkar-num{font-family:"Cormorant Garamond",serif;font-size:72px;font-weight:300;color:var(--white);line-height:1}
+.omkar-of{font-size:13px;color:var(--muted);letter-spacing:1px;margin-bottom:10px}
+.dots-grid{display:flex;flex-wrap:wrap;gap:7px;max-width:210px;justify-content:center;margin-top:10px}
+.dot{width:13px;height:13px;border-radius:50%;background:var(--bg3);
+  border:1.5px solid var(--gold-dim);transition:all .4s}
+.dot.lit{background:var(--gold);border-color:var(--gold);box-shadow:0 0 7px var(--gold)}
+.dot.latest{animation:dotPop .5s ease}
+@keyframes dotPop{0%{transform:scale(1.8)}100%{transform:scale(1)}}
+
+/* ── MIC VISUALIZER ── */
+.mic-vis{display:flex;align-items:flex-end;justify-content:center;gap:3px;height:36px;margin:8px 0 4px}
+.mic-bar{width:5px;border-radius:3px;background:var(--gold-dim);transition:height .08s ease;min-height:4px}
+.mic-bar.active{background:var(--gold)}
+.mic-status{font-size:11px;letter-spacing:2px;text-align:center;padding:3px 12px;border-radius:20px;
+  background:var(--bg3);color:var(--muted);display:inline-block}
+.mic-status.listening{color:var(--gold);border:1px solid var(--gold-dim);animation:listenPulse 1.5s infinite}
+.mic-status.speaking-now{color:var(--green);border:1px solid var(--green)}
+@keyframes listenPulse{0%,100%{opacity:1}50%{opacity:.5}}
+
+/* ── MANUAL (BANDHA) ── */
+.bandha-btn{margin-top:8px;padding:16px 44px;background:linear-gradient(135deg,var(--gold-dim),var(--gold));
+  border:none;border-radius:50px;color:var(--bg);font-family:"Raleway",sans-serif;
+  font-size:15px;font-weight:700;letter-spacing:2px;cursor:pointer;
+  box-shadow:0 4px 24px rgba(201,168,76,.3);transition:transform .1s}
+.bandha-btn:active{transform:scale(.95)}
+
+/* ── CONTROLS ── */
+.controls{width:100%;padding:0 30px 24px;display:flex;align-items:center;
+  justify-content:center;gap:20px;flex-shrink:0}
+.ctrl{border:none;cursor:pointer;border-radius:50%;display:flex;align-items:center;
+  justify-content:center;transition:all .15s;font-size:18px}
+.ctrl:active{transform:scale(.92)}
+.ctrl-main{width:68px;height:68px;background:linear-gradient(135deg,var(--gold-dim),var(--gold));
+  color:var(--bg);font-size:24px;box-shadow:0 4px 24px rgba(201,168,76,.35)}
+.ctrl-sec{width:50px;height:50px;background:var(--bg3);color:var(--muted);
+  border:1.5px solid rgba(201,168,76,.2)}
+.next-lbl{font-size:11px;color:var(--muted);letter-spacing:1px;margin-bottom:6px;flex-shrink:0}
+
+/* ── COUNTDOWN OVERLAY ── */
+.cd-overlay{position:fixed;inset:0;background:rgba(10,10,15,.92);z-index:50;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  transition:opacity .3s}
+.cd-overlay.hidden{opacity:0;pointer-events:none}
+.cd-label{font-family:"Cormorant Garamond",serif;font-size:15px;letter-spacing:3px;
+  color:var(--gold);text-transform:uppercase;margin-bottom:10px}
+.cd-msg{font-size:13px;color:var(--muted);letter-spacing:1px;margin-bottom:36px;
+  max-width:280px;text-align:center;line-height:1.6}
+.cd-ring{position:relative;width:140px;height:140px}
+.cd-ring svg{position:absolute;inset:0;transform:rotate(-90deg)}
+.cd-ring-bg{fill:none;stroke:var(--bg3);stroke-width:8}
+.cd-ring-prog{fill:none;stroke:var(--gold);stroke-width:8;stroke-linecap:round;
+  transition:stroke-dashoffset 1s linear}
+.cd-num{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+  font-family:"Cormorant Garamond",serif;font-size:68px;font-weight:300;color:var(--white)}
+.cd-next{margin-top:22px;font-size:13px;color:var(--muted);letter-spacing:1px}
+.cd-next span{color:var(--gold-light)}
+
+/* ── MIC PERMISSION OVERLAY ── */
+.perm-overlay{position:fixed;inset:0;background:rgba(10,10,15,.96);z-index:60;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;padding:30px;
+  transition:opacity .3s}
+.perm-overlay.hidden{opacity:0;pointer-events:none}
+.perm-icon{font-size:52px;margin-bottom:16px}
+.perm-title{font-family:"Cormorant Garamond",serif;font-size:26px;color:var(--gold);
+  margin-bottom:10px;letter-spacing:2px}
+.perm-txt{font-size:13px;color:var(--muted);line-height:1.7;text-align:center;
+  max-width:310px;margin-bottom:24px}
+.perm-steps{width:100%;max-width:340px;background:var(--bg2);border-radius:var(--radius);
+  padding:16px;border:1px solid var(--bg3);margin-bottom:20px}
+.perm-step{display:flex;gap:12px;align-items:flex-start;margin-bottom:12px}
+.perm-step:last-child{margin-bottom:0}
+.pstep-num{width:24px;height:24px;border-radius:50%;border:1.5px solid var(--gold);
+  color:var(--gold);font-size:11px;font-weight:700;display:flex;align-items:center;
+  justify-content:center;flex-shrink:0;margin-top:1px}
+.pstep-txt{font-size:12px;color:var(--muted);line-height:1.6;flex:1}
+.pstep-txt b{color:var(--white)}
+.perm-btn{padding:14px 36px;background:linear-gradient(135deg,var(--gold-dim),var(--gold));
+  border:none;border-radius:50px;color:var(--bg);font-family:"Raleway",sans-serif;
+  font-size:15px;font-weight:700;letter-spacing:2px;cursor:pointer;margin-bottom:10px}
+.perm-skip{background:none;border:none;color:var(--muted);font-size:13px;
+  cursor:pointer;padding:8px;text-decoration:underline;font-family:"Raleway",sans-serif}
+
+/* ── SETTINGS ── */
+#settingsScreen{background:var(--bg);overflow-y:auto}
+.s-hdr{width:100%;display:flex;align-items:center;justify-content:space-between;
+  padding:18px 20px;border-bottom:1px solid var(--bg3);position:sticky;top:0;background:var(--bg);z-index:10;flex-shrink:0}
+.s-title{font-family:"Cormorant Garamond",serif;font-size:20px;color:var(--gold);letter-spacing:2px}
+.s-body{width:100%;padding:14px 16px 120px}
+.s-sec{font-size:10px;letter-spacing:2px;color:var(--muted);text-transform:uppercase;margin:16px 0 8px}
+.s-card{background:var(--bg2);border:1px solid var(--bg3);border-radius:var(--radius);
+  padding:14px;margin-bottom:10px;display:flex;align-items:center;gap:12px}
+.s-num{width:28px;height:28px;border-radius:50%;border:1.5px solid var(--gold-dim);
+  display:flex;align-items:center;justify-content:center;font-size:12px;color:var(--gold);flex-shrink:0}
+.s-card-body{flex:1}
+.s-card-name{font-size:14px;color:var(--white);margin-bottom:3px;font-weight:600}
+.s-card-detail{font-size:11px;color:var(--muted)}
+.s-card-actions{display:flex;gap:6px}
+.cbtn{border:none;background:var(--bg3);color:var(--muted);padding:6px 11px;border-radius:8px;
+  font-size:12px;cursor:pointer;transition:all .2s;font-family:"Raleway",sans-serif}
+.cbtn.del{color:var(--red)}
+.cbtn:active{color:var(--gold)}
+.add-btn{width:100%;padding:13px;background:none;border:1.5px dashed var(--gold-dim);
+  border-radius:var(--radius);color:var(--gold-dim);font-size:13px;font-family:"Raleway",sans-serif;
+  cursor:pointer;letter-spacing:1px;transition:all .2s;margin-top:4px}
+.add-btn:active{border-color:var(--gold);color:var(--gold)}
+.sens-row{display:flex;align-items:center;gap:10px;margin-top:8px}
+.sens-lbl{font-size:12px;color:var(--muted);width:100px}
+input[type=range]{flex:1;accent-color:var(--gold)}
+.sens-val{font-size:12px;color:var(--gold);width:60px;text-align:right}
+.toggle-row{display:flex;align-items:center;justify-content:space-between;
+  padding:12px 0;border-bottom:1px solid var(--bg3)}
+.toggle-lbl{font-size:13px;color:var(--white)}
+.toggle-sub{font-size:11px;color:var(--muted);margin-top:2px}
+.toggle{position:relative;width:44px;height:24px;flex-shrink:0}
+.toggle input{opacity:0;width:0;height:0}
+.toggle-slider{position:absolute;inset:0;background:var(--bg3);border-radius:12px;
+  cursor:pointer;transition:.3s}
+.toggle-slider:before{content:"";position:absolute;height:18px;width:18px;left:3px;
+  bottom:3px;background:var(--muted);border-radius:50%;transition:.3s}
+.toggle input:checked + .toggle-slider{background:var(--gold-dim)}
+.toggle input:checked + .toggle-slider:before{transform:translateX(20px);background:var(--gold)}
+
+/* ── EDIT MODAL ── */
+.modal{position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:100;
+  display:flex;align-items:flex-end;transition:opacity .3s}
+.modal.hidden{opacity:0;pointer-events:none}
+.modal-box{width:100%;background:var(--bg2);border-radius:24px 24px 0 0;
+  padding:22px 20px 44px;border-top:1px solid var(--bg3);
+  transform:translateY(0);transition:transform .35s}
+.modal.hidden .modal-box{transform:translateY(100%)}
+.modal-title{font-family:"Cormorant Garamond",serif;font-size:20px;color:var(--gold);margin-bottom:18px}
+.flbl{font-size:10px;color:var(--muted);letter-spacing:1.5px;text-transform:uppercase;margin-bottom:5px}
+.finp{width:100%;background:var(--bg3);border:1px solid rgba(201,168,76,.2);
+  border-radius:9px;padding:11px 13px;color:var(--white);font-size:14px;
+  font-family:"Raleway",sans-serif;outline:none;margin-bottom:14px;transition:border-color .2s}
+.finp:focus{border-color:var(--gold)}
+.type-row{display:flex;gap:8px;margin-bottom:14px}
+.topt{flex:1;padding:9px 4px;border-radius:9px;border:1.5px solid var(--bg3);
+  background:var(--bg3);color:var(--muted);font-size:11px;text-align:center;cursor:pointer;transition:all .2s}
+.topt.on{border-color:var(--gold);color:var(--gold);background:var(--gold-faint)}
+.m-actions{display:flex;gap:10px;margin-top:4px}
+.mbtn{flex:1;padding:13px;border-radius:11px;border:none;font-size:14px;
+  font-family:"Raleway",sans-serif;font-weight:700;cursor:pointer;transition:all .2s}
+.mbtn:active{transform:scale(.97)}
+.mbtn.ok{background:linear-gradient(135deg,var(--gold-dim),var(--gold));color:var(--bg)}
+.mbtn.cancel{background:var(--bg3);color:var(--muted)}
+
+/* ── DONE ── */
+#doneScreen{justify-content:center;gap:0}
+.done-icon{font-size:60px;margin-bottom:14px;animation:pulse 2s infinite}
+.done-title{font-family:"Cormorant Garamond",serif;font-size:34px;color:var(--gold);letter-spacing:2px;margin-bottom:8px}
+.done-sub{color:var(--muted);font-size:13px;letter-spacing:1px;margin-bottom:32px}
+@keyframes pulse{0%,100%{transform:scale(1)}50%{transform:scale(1.07)}}
+
+/* ── TOAST ── */
+.toast{position:fixed;top:60px;left:50%;transform:translateX(-50%) translateY(-80px);
+  background:var(--bg3);color:var(--gold);padding:10px 22px;border-radius:30px;
+  font-size:13px;font-weight:600;letter-spacing:1px;border:1px solid var(--gold-dim);
+  z-index:200;transition:transform .4s cubic-bezier(.34,1.56,.64,1),opacity .3s;
+  opacity:0;white-space:nowrap;max-width:90vw;text-align:center}
+.toast.show{transform:translateX(-50%) translateY(0);opacity:1}
+
+/* ── MIC HELP BTN ── */
+.mic-help{font-size:11px;color:var(--muted);text-decoration:underline;cursor:pointer;
+  background:none;border:none;font-family:"Raleway",sans-serif;margin-top:6px}
+</style>
+</head>
+<body>
+
+<!-- MAIN SCREEN -->
+<div class="screen" id="mainScreen">
+  <div class="hdr">
+    <span class="app-title">॰ Dhyan ॰</span>
+    <div style="display:flex;gap:4px">
+      <button class="icon-btn" id="micHelpBtn" onclick="showMicHelp()" title="Mic Help">🎙</button>
+      <button class="icon-btn" onclick="showSettings()" title="Settings">&#9881;</button>
+    </div>
+  </div>
+  <div class="strip" id="pills"></div>
+  <div class="center">
+    <div class="stage-lbl" id="stageLbl">Stage 1 of 6</div>
+    <div class="stage-nm" id="stageNm">Butterfly</div>
+    <div class="ring-wrap" id="ringWrap">
+      <svg viewBox="0 0 210 210"><circle class="rbg" cx="105" cy="105" r="94"/><circle class="rprog" id="rprog" cx="105" cy="105" r="94" stroke-dasharray="591" stroke-dashoffset="591"/></svg>
+      <div class="rcen" id="rcen">
+        <div class="t-main" id="tMain">2:00</div>
+        <div class="t-sub">remaining</div>
+      </div>
+    </div>
+    <div class="status-txt" id="statusTxt"></div>
+  </div>
+  <div class="next-lbl" id="nextLbl"></div>
+  <div class="controls">
+    <button class="ctrl ctrl-sec" onclick="resetSession()" title="Reset">&#8634;</button>
+    <button class="ctrl ctrl-main" id="playBtn" onclick="togglePlay()">&#9654;</button>
+    <button class="ctrl ctrl-sec" onclick="skipStage()" title="Skip">&#9193;</button>
+  </div>
+</div>
+
+<!-- DONE SCREEN -->
+<div class="screen hidden" id="doneScreen">
+  <div class="done-icon">🙏</div>
+  <div class="done-title">Session Complete</div>
+  <div class="done-sub">Meditation completed</div>
+  <button class="mbtn ok" style="width:180px" onclick="resetSession()">Begin Again</button>
+</div>
+
+<!-- SETTINGS SCREEN -->
+<div class="screen hidden" id="settingsScreen">
+  <div class="s-hdr">
+    <span class="s-title">Customize</span>
+    <button class="icon-btn" onclick="showMain()">&#10005;</button>
+  </div>
+  <div class="s-body">
+    <div class="s-sec">Voice & Audio</div>
+    <div style="background:var(--bg2);border:1px solid var(--bg3);border-radius:var(--radius);padding:14px 16px">
+      <div class="toggle-row">
+        <div><div class="toggle-lbl">Announcements (TTS)</div><div class="toggle-sub">Voice says stage name on start & end</div></div>
+        <label class="toggle"><input type="checkbox" id="ttsToggle" checked><span class="toggle-slider"></span></label>
+      </div>
+      <div class="toggle-row" style="border:none;padding-bottom:0">
+        <div><div class="toggle-lbl">Bell sounds</div><div class="toggle-sub">Chime at each stage completion</div></div>
+        <label class="toggle"><input type="checkbox" id="bellToggle" checked><span class="toggle-slider"></span></label>
+      </div>
+    </div>
+    <div class="s-sec">Omkar Mic Sensitivity</div>
+    <div style="background:var(--bg2);border:1px solid var(--bg3);border-radius:var(--radius);padding:14px 16px">
+      <div style="font-size:12px;color:var(--muted);margin-bottom:10px;line-height:1.6">
+        Adjust how loud your voice needs to be for Omkar to be detected. If counting too early, increase this. If not counting, decrease it.
+      </div>
+      <div class="sens-row">
+        <span class="sens-lbl">Threshold</span>
+        <input type="range" id="sensSlider" min="1" max="20" value="4" oninput="updateSens(this.value)">
+        <span class="sens-val" id="sensVal">Medium</span>
+      </div>
+      <div class="sens-row" style="margin-top:4px">
+        <span class="sens-lbl">Min duration</span>
+        <input type="range" id="durSlider" min="3" max="20" value="8" oninput="updateDur(this.value)">
+        <span class="sens-val" id="durVal">0.8s</span>
+      </div>
+    </div>
+    <div class="s-sec">Meditation Stages</div>
+    <div id="stageList"></div>
+    <button class="add-btn" onclick="openAddModal()">+ Add New Stage</button>
+    <div style="margin-top:14px;padding:12px 14px;background:var(--bg2);border-radius:var(--radius);border:1px solid var(--bg3)">
+      <div style="font-size:11px;color:var(--muted);line-height:1.7">
+        <b style="color:var(--gold)">Timer</b> — counts down automatically.<br>
+        <b style="color:var(--gold)">Omkar (mic)</b> — listens to your voice, counts each chant.<br>
+        <b style="color:var(--gold)">Manual</b> — tap "Done" when finished.
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- EDIT MODAL -->
+<div class="modal hidden" id="editModal" onclick="closeModalOut(event)">
+  <div class="modal-box">
+    <div class="modal-title" id="modalTitle">Edit Stage</div>
+    <div class="flbl">Stage Name</div>
+    <input class="finp" id="eName" type="text" placeholder="e.g. Butterfly">
+    <div class="flbl">Type</div>
+    <div class="type-row">
+      <div class="topt on" id="tTimer" onclick="selType('timer')">⏱ Timer</div>
+      <div class="topt" id="tCount" onclick="selType('count')">🎙 Omkar (mic)</div>
+      <div class="topt" id="tManual" onclick="selType('manual')">👋 Manual</div>
+    </div>
+    <div id="fTimer">
+      <div class="flbl">Minutes</div>
+      <input class="finp" id="eMins" type="number" min="0" placeholder="7">
+      <div class="flbl">Seconds</div>
+      <input class="finp" id="eSecs" type="number" min="0" max="59" placeholder="0">
+    </div>
+    <div id="fCount" style="display:none">
+      <div class="flbl">Target Count</div>
+      <input class="finp" id="eTarget" type="number" min="1" placeholder="21">
+    </div>
+    <div class="m-actions">
+      <button class="mbtn cancel" onclick="closeModal()">Cancel</button>
+      <button class="mbtn ok" onclick="saveStage()">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- COUNTDOWN OVERLAY -->
+<div class="cd-overlay hidden" id="cdOverlay">
+  <div class="cd-label">Next Stage</div>
+  <div class="cd-msg" id="cdMsg"></div>
+  <div class="cd-ring">
+    <svg viewBox="0 0 140 140"><circle class="cd-ring-bg" cx="70" cy="70" r="58"/><circle class="cd-ring-prog" id="cdProg" cx="70" cy="70" r="58" stroke-dasharray="365" stroke-dashoffset="0"/></svg>
+    <div class="cd-num" id="cdNum">5</div>
+  </div>
+  <div class="cd-next">Starting: <span id="cdNextName"></span></div>
+</div>
+
+<!-- MIC PERMISSION HELP -->
+<div class="perm-overlay hidden" id="permOverlay">
+  <div class="perm-icon">🎙️</div>
+  <div class="perm-title">Microphone Access</div>
+  <div class="perm-txt">For Omkar counting to work, the app needs microphone access. Follow these steps if Chrome isn't asking for permission.</div>
+  <div class="perm-steps">
+    <div class="perm-step">
+      <div class="pstep-num">1</div>
+      <div class="pstep-txt"><b>Open in Chrome</b> (not WhatsApp browser)<br>In WhatsApp, tap ⋮ → <b>Open in Chrome</b></div>
+    </div>
+    <div class="perm-step">
+      <div class="pstep-num">2</div>
+      <div class="pstep-txt">When Chrome asks for mic permission, tap <b>Allow</b></div>
+    </div>
+    <div class="perm-step">
+      <div class="pstep-num">3</div>
+      <div class="pstep-txt">If you already denied: tap the <b>🔒 lock icon</b> in Chrome's address bar → Permissions → Microphone → Allow</div>
+    </div>
+    <div class="perm-step">
+      <div class="pstep-num">4</div>
+      <div class="pstep-txt">If still blocked: <b>Chrome Settings</b> → Site Settings → Microphone → find the file → Allow</div>
+    </div>
+  </div>
+  <button class="perm-btn" onclick="requestMicAndClose()">Try Again</button>
+  <button class="perm-skip" onclick="closeMicHelp()">Skip (no mic features)</button>
+</div>
+
+<!-- TOAST -->
+<div class="toast" id="toast"></div>
+
+<script>
+// ═══════════════════════════════════════════
+//  DEFAULT STAGES
+// ═══════════════════════════════════════════
+const DEF = [
+  {id:1,name:"Butterfly",  type:"timer", duration:120},
+  {id:2,name:"Shishupal",  type:"timer", duration:120},
+  {id:3,name:"Sukhasan",   type:"timer", duration:420},
+  {id:4,name:"Omkar",      type:"count", target:21},
+  {id:5,name:"Bandha",     type:"manual",target:1},
+  {id:6,name:"Fast Breath",type:"timer", duration:300},
+];
+
+// ═══════════════════════════════════════════
+//  STATE
+// ═══════════════════════════════════════════
+let stages = JSON.parse(localStorage.getItem("dhyan_stages")||"null") || JSON.parse(JSON.stringify(DEF));
+let idx = 0, isRunning = false, tick = null, secsLeft = 0, countDone = 0;
+let editIdx = null, editType = "timer";
+let wakeLock = null;
+
+// VAD state
+let audioCtx=null, analyser=null, micStream=null, vadRAF=null;
+let isSpeaking=false, speakStart=0, silTimer=null;
+let vadThreshold=0.04, minOmkarMs=800, silenceMs=1200;
+
+// Settings
+let ttsEnabled=true, bellEnabled=true;
+
+// ═══════════════════════════════════════════
+//  TTS
+// ═══════════════════════════════════════════
+let ttsLock = false;
+function speak(text) {
+  return new Promise(resolve => {
+    if (!ttsEnabled || !window.speechSynthesis) { resolve(); return; }
+    speechSynthesis.cancel();
+    const u = new SpeechSynthesisUtterance(text);
+    u.rate = 0.88; u.pitch = 0.92; u.volume = 1;
+    u.onend = () => { ttsLock=false; resolve(); };
+    u.onerror = () => { ttsLock=false; resolve(); };
+    ttsLock = true;
+    speechSynthesis.speak(u);
+  });
+}
+
+// ═══════════════════════════════════════════
+//  BELL
+// ═══════════════════════════════════════════
+function playBell(freq=528, dur=2.2) {
+  if (!bellEnabled) return;
+  try {
+    const c = new (window.AudioContext||window.webkitAudioContext)();
+    const o = c.createOscillator(), g = c.createGain();
+    o.connect(g); g.connect(c.destination);
+    o.type="sine"; o.frequency.setValueAtTime(freq, c.currentTime);
+    o.frequency.exponentialRampToValueAtTime(freq*0.5, c.currentTime+dur);
+    g.gain.setValueAtTime(0.6, c.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.001, c.currentTime+dur);
+    o.start(); o.stop(c.currentTime+dur);
+  } catch(e){}
+}
+function playTick() {
+  try {
+    const c = new (window.AudioContext||window.webkitAudioContext)();
+    const o = c.createOscillator(), g = c.createGain();
+    o.connect(g); g.connect(c.destination);
+    o.type="sine"; o.frequency.value=880;
+    g.gain.setValueAtTime(0.3, c.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.001, c.currentTime+0.12);
+    o.start(); o.stop(c.currentTime+0.15);
+  } catch(e){}
+}
+
+// ═══════════════════════════════════════════
+//  WAKE LOCK
+// ═══════════════════════════════════════════
+async function reqWake() {
+  try { if("wakeLock" in navigator) wakeLock = await navigator.wakeLock.request("screen"); } catch(e){}
+}
+function relWake() { if(wakeLock){wakeLock.release();wakeLock=null;} }
+
+// ═══════════════════════════════════════════
+//  SCREENS
+// ═══════════════════════════════════════════
+function showMain()     { setScr("mainScreen"); }
+function showSettings() { renderSettings(); setScr("settingsScreen"); }
+function showDone()     { setScr("doneScreen"); }
+function setScr(id) { document.querySelectorAll(".screen").forEach(s=>s.classList.add("hidden")); document.getElementById(id).classList.remove("hidden"); }
+
+// ═══════════════════════════════════════════
+//  PILLS
+// ═══════════════════════════════════════════
+function renderPills() {
+  const c = document.getElementById("pills"); c.innerHTML="";
+  stages.forEach((s,i) => {
+    const p = document.createElement("div");
+    p.className="pill"+(i<idx?" done":i===idx?" active":"");
+    p.textContent=s.name; c.appendChild(p);
+  });
+  setTimeout(() => { const a=c.querySelector(".active"); if(a) a.scrollIntoView({inline:"center",block:"nearest",behavior:"smooth"}); }, 80);
+}
+
+// ═══════════════════════════════════════════
+//  RING
+// ═══════════════════════════════════════════
+function setRing(pct) {
+  const c=591, off=c*(1-Math.max(0,Math.min(1,pct)));
+  document.getElementById("rprog").style.strokeDashoffset=off;
+}
+
+// ═══════════════════════════════════════════
+//  INIT STAGE
+// ═══════════════════════════════════════════
+function initStage() {
+  if(idx>=stages.length){finishSession();return;}
+  const s=stages[idx];
+  document.getElementById("stageLbl").textContent="Stage "+(idx+1)+" of "+stages.length;
+  document.getElementById("stageNm").textContent=s.name;
+  document.getElementById("statusTxt").textContent="";
+  const nxt=stages[idx+1];
+  document.getElementById("nextLbl").textContent=nxt?"Next: "+nxt.name:"";
+  renderPills();
+
+  stopVAD();
+  clearInterval(tick);
+  isRunning=false;
+
+  if(s.type==="timer") {
+    secsLeft=s.duration;
+    setRing(1);
+    document.getElementById("rcen").innerHTML=
+      '<div class="t-main" id="tMain">'+fmt(secsLeft)+'</div><div class="t-sub">remaining</div>';
+  } else if(s.type==="count") {
+    countDone=0;
+    setRing(0);
+    renderOmkar(s);
+  } else {
+    setRing(1);
+    renderManual(s);
+  }
+  updatePlayBtn();
+}
+
+function renderTimer() {
+  const s=stages[idx];
+  const t=document.getElementById("tMain");
+  if(t) t.textContent=fmt(secsLeft);
+  setRing(secsLeft/s.duration);
+}
+
+function renderOmkar(s) {
+  const target=s.target||21;
+  let dots="";
+  for(let i=0;i<target;i++) dots+='<div class="dot'+(i<countDone?" lit":"")+(i===countDone-1?" latest":"")+'"></div>';
+  document.getElementById("rcen").innerHTML=
+    '<div class="omkar-num" id="omkNum">'+countDone+'</div>'+
+    '<div class="omkar-of">of '+target+'</div>'+
+    '<div class="dots-grid" id="dGrid">'+dots+'</div>'+
+    '<div class="mic-vis" id="micVis">'+
+      '<div class="mic-bar" id="mb0"></div><div class="mic-bar" id="mb1"></div>'+
+      '<div class="mic-bar" id="mb2"></div><div class="mic-bar" id="mb3"></div>'+
+      '<div class="mic-bar" id="mb4"></div><div class="mic-bar" id="mb5"></div>'+
+      '<div class="mic-bar" id="mb6"></div>'+
+    '</div>'+
+    '<div class="mic-status" id="micStat">Tap ▶ to start listening</div>';
+  setRing(countDone/target);
+}
+
+function renderManual(s) {
+  document.getElementById("rcen").innerHTML=
+    '<div style="text-align:center">'+
+    '<div style="font-size:46px;margin-bottom:10px">🫁</div>'+
+    '<button class="bandha-btn" onclick="completeBandha()">'+s.name+'<br>'+
+    '<span style="font-size:11px;font-weight:400;letter-spacing:1px">TAP WHEN DONE</span></button>'+
+    '</div>';
+}
+
+// ═══════════════════════════════════════════
+//  PLAY / PAUSE
+// ═══════════════════════════════════════════
+function togglePlay() {
+  if(!isRunning) startStage(); else pauseStage();
+}
+function updatePlayBtn() {
+  document.getElementById("playBtn").innerHTML = isRunning ? "&#9646;&#9646;" : "&#9654;";
+}
+
+async function startStage() {
+  isRunning=true; updatePlayBtn(); reqWake();
+  const s=stages[idx];
+  if(s.type==="timer") { startTimerTick(); }
+  else if(s.type==="count") {
+    await requestMicAccess();
+    if(micStream) {
+      startVAD(s);
+      setMicStatus("listening","🎙 Listening for Omkar...");
+    } else {
+      setMicStatus("","Mic unavailable — tap dots manually");
+      document.getElementById("rcen").innerHTML += '<br><button class="bandha-btn" style="margin-top:10px;font-size:13px;padding:10px 24px" onclick="manualCountOmkar()">+1 Omkar (manual)</button>';
+    }
+  }
+  // manual: nothing, wait for tap
+}
+
+function pauseStage() {
+  isRunning=false; updatePlayBtn(); relWake();
+  clearInterval(tick);
+  stopVAD();
+  setMicStatus("","Paused — tap ▶ to resume");
+  document.getElementById("statusTxt").textContent="Paused";
+}
+
+function startTimerTick() {
+  clearInterval(tick);
+  tick = setInterval(() => {
+    if(!isRunning) return;
+    secsLeft--;
+    renderTimer();
+    if(secsLeft<=0) { clearInterval(tick); stageComplete(); }
+  }, 1000);
+}
+
+// ═══════════════════════════════════════════
+//  VAD — VOICE ACTIVITY DETECTION
+// ═══════════════════════════════════════════
+async function requestMicAccess() {
+  if(micStream) return;
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({audio:true,video:false});
+    micStream=stream;
+    audioCtx = new (window.AudioContext||window.webkitAudioContext)();
+    analyser = audioCtx.createAnalyser();
+    analyser.fftSize=256;
+    const src = audioCtx.createMediaStreamSource(stream);
+    src.connect(analyser);
+    showToast("🎙 Microphone connected");
+  } catch(e) {
+    showMicHelp();
+  }
+}
+
+function startVAD(stageRef) {
+  if(!analyser) return;
+  const target=stageRef.target||21;
+  const buf=new Uint8Array(analyser.frequencyBinCount);
+
+  function loop() {
+    if(!isRunning) return;
+    vadRAF=requestAnimationFrame(loop);
+    analyser.getByteTimeDomainData(buf);
+    let sum=0;
+    for(let i=0;i<buf.length;i++){const v=(buf[i]-128)/128; sum+=v*v;}
+    const rms=Math.sqrt(sum/buf.length);
+    updateMicBars(rms);
+    const threshold = vadThreshold;
+
+    if(rms>threshold) {
+      if(!isSpeaking){isSpeaking=true; speakStart=Date.now();}
+      clearTimeout(silTimer); silTimer=null;
+      setMicStatus("speaking-now","🗣 Speaking... keep going");
+    } else {
+      if(isSpeaking && !silTimer) {
+        silTimer = setTimeout(() => {
+          const dur=Date.now()-speakStart;
+          isSpeaking=false; silTimer=null;
+          if(dur>=minOmkarMs && isRunning) {
+            countDoneOmkar(target);
+          } else {
+            setMicStatus("listening","🎙 Listening...");
+          }
+        }, silenceMs);
+      }
+    }
+  }
+  loop();
+}
+
+function stopVAD() {
+  if(vadRAF){cancelAnimationFrame(vadRAF);vadRAF=null;}
+  clearTimeout(silTimer); silTimer=null;
+  isSpeaking=false;
+}
+
+function countDoneOmkar(target) {
+  if(ttsLock) return; // don't count while TTS is announcing
+  countDone++;
+  playTick();
+  const n=document.getElementById("omkNum"); if(n) n.textContent=countDone;
+  setRing(countDone/target);
+  // update dots
+  const dGrid=document.getElementById("dGrid");
+  if(dGrid) {
+    const dots=dGrid.children;
+    if(dots[countDone-1]) {
+      dots[countDone-1].classList.add("lit","latest");
+      setTimeout(()=>{if(dots[countDone-1]) dots[countDone-1].classList.remove("latest");},500);
+    }
+  }
+  document.getElementById("statusTxt").textContent="✓ Omkar "+countDone+" of "+target;
+  if(countDone>=target) {
+    stopVAD();
+    setMicStatus("","✅ "+target+" Omkar complete!");
+    speak(target+" Omkar completed. Well done.").then(()=>{
+      stageComplete();
+    });
+  } else {
+    setMicStatus("listening","🎙 Listening... ("+(target-countDone)+" more)");
+  }
+}
+
+function manualCountOmkar() {
+  const s=stages[idx];
+  countDoneOmkar(s.target||21);
+}
+
+function updateMicBars(rms) {
+  const bars=document.querySelectorAll(".mic-bar");
+  if(!bars.length) return;
+  // create variation across 7 bars
+  const base=Math.min(rms*400,32);
+  const heights=[0.4,0.6,0.8,1.0,0.8,0.6,0.4];
+  bars.forEach((b,i)=>{
+    const h=Math.max(4,base*heights[i]+Math.random()*4);
+    b.style.height=Math.min(36,h)+"px";
+    b.classList.toggle("active",rms>vadThreshold);
+  });
+}
+
+function setMicStatus(cls,text) {
+  const el=document.getElementById("micStat");
+  if(!el) return;
+  el.className="mic-status"+(cls?" "+cls:"");
+  el.textContent=text;
+}
+
+// ═══════════════════════════════════════════
+//  MANUAL STAGE
+// ═══════════════════════════════════════════
+function completeBandha() {
+  if(!isRunning) return;
+  stageComplete();
+}
+
+// ═══════════════════════════════════════════
+//  STAGE COMPLETE → COUNTDOWN → NEXT
+// ═══════════════════════════════════════════
+async function stageComplete() {
+  clearInterval(tick);
+  stopVAD();
+  isRunning=false; updatePlayBtn(); relWake();
+  playBell();
+
+  const doneName=stages[idx].name;
+  idx++;
+
+  if(idx>=stages.length) {
+    await speak(doneName+" completed. Your meditation session is now complete. Namaste.");
+    finishSession();
+    return;
+  }
+
+  const nextName=stages[idx].name;
+  await speak(doneName+" completed. Moving to "+nextName+".");
+  showCountdown(5, nextName, async ()=>{
+    initStage();
+    await speak(nextName+" started.");
+    startStage();
+  });
+}
+
+function finishSession() {
+  relWake();
+  stopMic();
+  playBell(528,2.5);
+  setTimeout(()=>playBell(396,2),1000);
+  setTimeout(()=>playBell(528,3),2000);
+  showDone();
+}
+
+// ═══════════════════════════════════════════
+//  COUNTDOWN
+// ═══════════════════════════════════════════
+function showCountdown(secs, nextName, onDone) {
+  const ov=document.getElementById("cdOverlay");
+  const prog=document.getElementById("cdProg");
+  const num=document.getElementById("cdNum");
+  const msg=document.getElementById("cdMsg");
+  const nn=document.getElementById("cdNextName");
+  const C=365;
+  num.textContent=secs;
+  msg.textContent="Get ready...";
+  nn.textContent=nextName;
+  prog.style.strokeDashoffset="0";
+  ov.classList.remove("hidden");
+  let rem=secs;
+  const iv=setInterval(()=>{
+    rem--;
+    num.textContent=rem;
+    prog.style.strokeDashoffset=(C*(1-rem/secs))+"";
+    if(rem<=0){
+      clearInterval(iv);
+      ov.classList.add("hidden");
+      onDone();
+    }
+  },1000);
+}
+
+// ═══════════════════════════════════════════
+//  RESET / SKIP
+// ═══════════════════════════════════════════
+function resetSession() {
+  clearInterval(tick); stopVAD();
+  isRunning=false; idx=0; secsLeft=0; countDone=0;
+  relWake(); speechSynthesis&&speechSynthesis.cancel();
+  document.getElementById("cdOverlay").classList.add("hidden");
+  initStage(); showMain();
+}
+
+function skipStage() {
+  clearInterval(tick); stopVAD();
+  isRunning=false; relWake(); speechSynthesis&&speechSynthesis.cancel();
+  idx++;
+  if(idx>=stages.length){finishSession();return;}
+  initStage();
+}
+
+function stopMic() {
+  stopVAD();
+  if(micStream){micStream.getTracks().forEach(t=>t.stop());micStream=null;}
+  if(audioCtx){audioCtx.close();audioCtx=null;}
+  analyser=null;
+}
+
+// ═══════════════════════════════════════════
+//  FORMAT
+// ═══════════════════════════════════════════
+function fmt(s){const m=Math.floor(s/60);return m+":"+String(s%60).padStart(2,"0");}
+
+// ═══════════════════════════════════════════
+//  SETTINGS
+// ═══════════════════════════════════════════
+function renderSettings() {
+  const list=document.getElementById("stageList"); list.innerHTML="";
+  stages.forEach((s,i)=>{
+    let det="";
+    if(s.type==="timer") det=fmt(s.duration)+" duration";
+    else if(s.type==="count") det="🎙 "+s.target+" repetitions (mic)";
+    else det="Manual — tap done";
+    const c=document.createElement("div"); c.className="s-card";
+    c.innerHTML='<div class="s-num">'+(i+1)+'</div>'+
+      '<div class="s-card-body"><div class="s-card-name">'+s.name+'</div><div class="s-card-detail">'+det+'</div></div>'+
+      '<div class="s-card-actions"><button class="cbtn" onclick="openEdit('+i+')">Edit</button>'+
+      (stages.length>1?'<button class="cbtn del" onclick="delStage('+i+')">Del</button>':'')+
+      '</div>';
+    list.appendChild(c);
+  });
+  document.getElementById("ttsToggle").checked=ttsEnabled;
+  document.getElementById("bellToggle").checked=bellEnabled;
+  document.getElementById("ttsToggle").onchange=e=>{ttsEnabled=e.target.checked;};
+  document.getElementById("bellToggle").onchange=e=>{bellEnabled=e.target.checked;};
+}
+
+function delStage(i){if(stages.length<=1)return;stages.splice(i,1);saveStages();renderSettings();}
+
+function updateSens(v) {
+  const labels=["Very Low","Low","Medium","High","Very High"];
+  const thresholds=[0.01,0.02,0.04,0.07,0.12];
+  const li=Math.round((v-1)/4.75);
+  document.getElementById("sensVal").textContent=labels[Math.min(li,4)];
+  vadThreshold=thresholds[Math.min(li,4)];
+  localStorage.setItem("dhyan_sens",v);
+}
+function updateDur(v) {
+  minOmkarMs=v*100;
+  document.getElementById("durVal").textContent=(minOmkarMs/1000).toFixed(1)+"s";
+  localStorage.setItem("dhyan_dur",v);
+}
+
+// ═══════════════════════════════════════════
+//  MODAL
+// ═══════════════════════════════════════════
+function openEdit(i){
+  editIdx=i; const s=stages[i];
+  document.getElementById("modalTitle").textContent="Edit — "+s.name;
+  document.getElementById("eName").value=s.name;
+  selType(s.type);
+  if(s.type==="timer"){document.getElementById("eMins").value=Math.floor(s.duration/60);document.getElementById("eSecs").value=s.duration%60;}
+  else document.getElementById("eTarget").value=s.target||21;
+  document.getElementById("editModal").classList.remove("hidden");
+}
+function openAddModal(){
+  editIdx=null;
+  document.getElementById("modalTitle").textContent="Add Stage";
+  document.getElementById("eName").value="";
+  selType("timer");
+  document.getElementById("eMins").value=""; document.getElementById("eSecs").value=""; document.getElementById("eTarget").value="";
+  document.getElementById("editModal").classList.remove("hidden");
+}
+function closeModal(){document.getElementById("editModal").classList.add("hidden");}
+function closeModalOut(e){if(e.target===document.getElementById("editModal"))closeModal();}
+function selType(t){
+  editType=t;
+  ["Timer","Count","Manual"].forEach(x=>{document.getElementById("t"+x).classList.toggle("on",x.toLowerCase()===t);});
+  document.getElementById("fTimer").style.display=t==="timer"?"block":"none";
+  document.getElementById("fCount").style.display=t==="count"?"block":"none";
+}
+function saveStage(){
+  const name=document.getElementById("eName").value.trim();
+  if(!name){showToast("Enter a stage name");return;}
+  let sd;
+  if(editType==="timer"){
+    const d=(parseInt(document.getElementById("eMins").value)||0)*60+(parseInt(document.getElementById("eSecs").value)||0);
+    if(d<=0){showToast("Enter a duration");return;}
+    sd={name,type:"timer",duration:d};
+  } else if(editType==="count"){
+    sd={name,type:"count",target:parseInt(document.getElementById("eTarget").value)||21};
+  } else {
+    sd={name,type:"manual",target:1};
+  }
+  if(editIdx!==null){sd.id=stages[editIdx].id;stages[editIdx]=sd;}
+  else{sd.id=Date.now();stages.push(sd);}
+  saveStages(); closeModal(); renderSettings(); showToast("Saved ✓");
+}
+function saveStages(){localStorage.setItem("dhyan_stages",JSON.stringify(stages));}
+
+// ═══════════════════════════════════════════
+//  MIC PERMISSION OVERLAY
+// ═══════════════════════════════════════════
+function showMicHelp(){document.getElementById("permOverlay").classList.remove("hidden");}
+function closeMicHelp(){document.getElementById("permOverlay").classList.add("hidden");}
+async function requestMicAndClose(){
+  closeMicHelp();
+  await requestMicAccess();
+  if(micStream) showToast("🎙 Mic connected!");
+}
+
+// ═══════════════════════════════════════════
+//  TOAST
+// ═══════════════════════════════════════════
+let toastT;
+function showToast(msg){
+  const el=document.getElementById("toast"); el.textContent=msg; el.classList.add("show");
+  clearTimeout(toastT); toastT=setTimeout(()=>el.classList.remove("show"),2600);
+}
+
+// ═══════════════════════════════════════════
+//  INIT
+// ═══════════════════════════════════════════
+window.addEventListener("DOMContentLoaded",()=>{
+  // restore settings
+  const sv=localStorage.getItem("dhyan_sens"); if(sv){document.getElementById("sensSlider").value=sv;updateSens(sv);}
+  const dv=localStorage.getItem("dhyan_dur");  if(dv){document.getElementById("durSlider").value=dv;updateDur(dv);}
+  else{document.getElementById("durVal").textContent="0.8s";}
+  initStage(); showMain();
+  // unlock AudioContext on first tap
+  document.addEventListener("touchstart",()=>{
+    try{const c=new(window.AudioContext||window.webkitAudioContext)();c.resume();}catch(e){}
+  },{once:true});
+});
+</script>
+</body>
+</html>
