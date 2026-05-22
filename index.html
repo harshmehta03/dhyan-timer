@@ -147,7 +147,16 @@ html,body{height:100%;background:var(--bg);color:var(--white);font-family:"Ralew
 .s-body{width:100%;padding:14px 16px 120px}
 .s-sec{font-size:10px;letter-spacing:2px;color:var(--muted);text-transform:uppercase;margin:16px 0 8px}
 .s-card{background:var(--bg2);border:1px solid var(--bg3);border-radius:var(--radius);
-  padding:14px;margin-bottom:10px;display:flex;align-items:center;gap:12px}
+  padding:14px;margin-bottom:10px;display:flex;align-items:center;gap:12px;
+  transition:transform .15s,box-shadow .15s,opacity .15s;user-select:none;-webkit-user-select:none}
+.s-card.dragging{opacity:0.35;border-style:dashed}
+.s-card.drag-over{border-color:var(--gold);box-shadow:0 0 0 2px var(--gold-dim);transform:scale(1.02)}
+.drag-ghost{position:fixed;pointer-events:none;z-index:500;border-radius:var(--radius);
+  background:var(--bg3);border:1.5px solid var(--gold);box-shadow:0 8px 32px rgba(0,0,0,0.7);
+  opacity:0.92;padding:14px;display:flex;align-items:center;gap:12px;transition:none}
+.drag-handle{display:flex;flex-direction:column;gap:3px;padding:4px 2px;cursor:grab;flex-shrink:0}
+.drag-handle span{display:block;width:18px;height:2px;background:var(--gold-dim);border-radius:2px;transition:background .2s}
+.s-card:active .drag-handle span,.drag-handle:active span{background:var(--gold)}
 .s-num{width:28px;height:28px;border-radius:50%;border:1.5px solid var(--gold-dim);
   display:flex;align-items:center;justify-content:center;font-size:12px;color:var(--gold);flex-shrink:0}
 .s-card-body{flex:1}
@@ -844,12 +853,16 @@ function renderSettings() {
     if(s.type==="timer") det=fmt(s.duration)+" duration";
     else if(s.type==="count") det="🎙 "+s.target+" repetitions (mic)";
     else det="Manual — tap done";
-    const c=document.createElement("div"); c.className="s-card";
-    c.innerHTML='<div class="s-num">'+(i+1)+'</div>'+
+    const c=document.createElement("div");
+    c.className="s-card"; c.dataset.idx=i;
+    c.innerHTML=
+      '<div class="drag-handle" title="Hold to drag"><span></span><span></span><span></span></div>'+
+      '<div class="s-num">'+(i+1)+'</div>'+
       '<div class="s-card-body"><div class="s-card-name">'+s.name+'</div><div class="s-card-detail">'+det+'</div></div>'+
       '<div class="s-card-actions"><button class="cbtn" onclick="openEdit('+i+')">Edit</button>'+
       (stages.length>1?'<button class="cbtn del" onclick="delStage('+i+')">Del</button>':'')+
       '</div>';
+    attachDragToCard(c, i);
     list.appendChild(c);
   });
   const ws=document.getElementById("waitSlider"); if(ws){ws.value=waitSecs;document.getElementById("waitVal").textContent=waitSecs+" sec";}
@@ -964,6 +977,127 @@ window.addEventListener("DOMContentLoaded",()=>{
     try{const c=new(window.AudioContext||window.webkitAudioContext)();c.resume();}catch(e){}
   },{once:true});
 });
+
+// ═══════════════════════════════════════════
+//  DRAG-TO-REORDER (touch + mouse)
+// ═══════════════════════════════════════════
+let dragSrcIdx = null;
+let ghost = null;
+let ghostOffX = 0, ghostOffY = 0;
+let lastOverEl = null;
+
+function attachDragToCard(card, i) {
+  const handle = card.querySelector(".drag-handle");
+
+  // ── TOUCH ──
+  handle.addEventListener("touchstart", e => {
+    e.preventDefault();
+    dragSrcIdx = parseInt(card.dataset.idx);
+    const t = e.touches[0];
+    const rect = card.getBoundingClientRect();
+    ghostOffX = t.clientX - rect.left;
+    ghostOffY = t.clientY - rect.top;
+    createGhost(card, t.clientX - ghostOffX, t.clientY - ghostOffY);
+    card.classList.add("dragging");
+    navigator.vibrate && navigator.vibrate(30);
+  }, {passive:false});
+
+  handle.addEventListener("touchmove", e => {
+    e.preventDefault();
+    if(dragSrcIdx === null) return;
+    const t = e.touches[0];
+    moveGhost(t.clientX - ghostOffX, t.clientY - ghostOffY);
+    const el = findCardUnder(t.clientX, t.clientY);
+    highlightOver(el);
+  }, {passive:false});
+
+  handle.addEventListener("touchend", e => {
+    e.preventDefault();
+    finalizeDrop();
+  }, {passive:false});
+
+  // ── MOUSE (desktop testing) ──
+  handle.addEventListener("mousedown", e => {
+    e.preventDefault();
+    dragSrcIdx = parseInt(card.dataset.idx);
+    const rect = card.getBoundingClientRect();
+    ghostOffX = e.clientX - rect.left;
+    ghostOffY = e.clientY - rect.top;
+    createGhost(card, e.clientX - ghostOffX, e.clientY - ghostOffY);
+    card.classList.add("dragging");
+  });
+}
+
+document.addEventListener("mousemove", e => {
+  if(dragSrcIdx === null) return;
+  moveGhost(e.clientX - ghostOffX, e.clientY - ghostOffY);
+  const el = findCardUnder(e.clientX, e.clientY);
+  highlightOver(el);
+});
+
+document.addEventListener("mouseup", e => {
+  if(dragSrcIdx === null) return;
+  finalizeDrop();
+});
+
+function createGhost(card, x, y) {
+  removeGhost();
+  ghost = document.createElement("div");
+  ghost.className = "drag-ghost";
+  ghost.style.width = card.offsetWidth + "px";
+  ghost.innerHTML = card.innerHTML;
+  ghost.style.left = x + "px";
+  ghost.style.top  = y + "px";
+  document.body.appendChild(ghost);
+}
+
+function moveGhost(x, y) {
+  if(!ghost) return;
+  ghost.style.left = x + "px";
+  ghost.style.top  = y + "px";
+}
+
+function removeGhost() {
+  if(ghost) { ghost.remove(); ghost = null; }
+}
+
+function findCardUnder(cx, cy) {
+  const cards = document.querySelectorAll("#stageList .s-card:not(.dragging)");
+  for(const c of cards) {
+    const r = c.getBoundingClientRect();
+    if(cx >= r.left && cx <= r.right && cy >= r.top && cy <= r.bottom) return c;
+  }
+  return null;
+}
+
+function highlightOver(el) {
+  if(lastOverEl && lastOverEl !== el) lastOverEl.classList.remove("drag-over");
+  if(el) el.classList.add("drag-over");
+  lastOverEl = el;
+}
+
+function finalizeDrop() {
+  removeGhost();
+  if(lastOverEl) lastOverEl.classList.remove("drag-over");
+  // remove dragging class from src card
+  const srcCard = document.querySelector("#stageList .s-card.dragging");
+  if(srcCard) srcCard.classList.remove("dragging");
+
+  if(dragSrcIdx !== null && lastOverEl) {
+    const destIdx = parseInt(lastOverEl.dataset.idx);
+    if(destIdx !== dragSrcIdx && !isNaN(destIdx)) {
+      const moved = stages.splice(dragSrcIdx, 1)[0];
+      stages.splice(destIdx, 0, moved);
+      saveStages();
+      showToast("Order updated ✓");
+      navigator.vibrate && navigator.vibrate([20, 40, 20]);
+      renderSettings();
+    }
+  }
+  dragSrcIdx = null;
+  lastOverEl = null;
+}
+
 </script>
 
 <!-- WATERMARK -->
